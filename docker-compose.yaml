@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # Main API Service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: woocommerce-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ALGORITHM=HS256
+      - CONSUMER_KEY=${CONSUMER_KEY}
+      - CONSUMER_SECRET=${CONSUMER_SECRET}
+      - BASE_URL=${BASE_URL}
+      - AUTH_KEY=${AUTH_KEY}
+      - TERMINAL_ID=${TERMINAL_ID}
+      - TERMINAL_PASSWORD=${TERMINAL_PASSWORD}
+    depends_on:
+      - redis
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - woocommerce-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis for caching and task management
+  redis:
+    image: redis:7-alpine
+    container_name: woocommerce-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - woocommerce-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  woocommerce-network:
+    driver: bridge
+
+# Development profile for local development
+profiles:
+  development:
+    environment:
+      - ENVIRONMENT=development
+    volumes:
+      - .:/app
+      - /app/__pycache__
+      - /app/.venv
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
