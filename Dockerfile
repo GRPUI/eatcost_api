@@ -25,7 +25,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --shell /bin/bash app
+    && groupadd -r app && useradd --create-home --shell /bin/bash --gid app app \
+    && mkdir -p /app/logs \
+    && chown -R app:app /app
 
 # Copy installed packages from builder
 COPY --from=builder /root/.local /home/app/.local
