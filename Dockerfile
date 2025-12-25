@@ -24,6 +24,7 @@ WORKDIR /app
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
     curl \
+    gosu \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r app && useradd --create-home --shell /bin/bash --gid app app \
     && mkdir -p /app/logs \

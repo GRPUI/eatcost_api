@@ -27,6 +27,8 @@ services:
     volumes:
       - ./logs:/app/logs
     init: true
+    entrypoint: >
+      sh -c "mkdir -p /app/logs && chown -R app:app /app/logs && exec gosu app python main.py"
     networks:
       - woocommerce-network
     healthcheck:
