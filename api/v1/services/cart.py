@@ -34,7 +34,31 @@ class CartService:
 
     @staticmethod
     async def add_to_cart(jwt_token: str, product_id: int, quantity: int, redis: AsyncRedisCache):
-        pass
+        try:
+            try:
+                user = AuthService.decode_jwt_token(jwt_token.replace("Bearer ", "")).get("id")
+            except ValueError as e:
+                return {"error": "Invalid JWT token", "message": str(e)}
+            cache_key = f"cart_token:{user}"
+            cart_token = await redis.get(cache_key, compressed=True)
+            if not cart_token:
+                for _ in range(3):
+                    await CartService.get_cart(jwt_token, redis)
+                    cart_token = await redis.get(cache_key, compressed=True)
+                    if cart_token:
+                        break
+                else:
+                    return {"error": "Cart token not found", "message": "Please log in again"}
+            async with WooCommerceUtils(CONSUMER_KEY, CONSUMER_SECRET, BASE_URL) as woocommerce:
+                for _ in range(3):
+                    data = await woocommerce.add_item_to_cart(cart_token, product_id, quantity)
+                    if data.get("status") in [200, 409]:
+                        await redis.delete(f"cart:{user}")
+                        break
+                    await asyncio.sleep(1)
+                return data
+        except Exception as e:
+            logger.error(f"CartService: Error getting cart - {str(e)}")
 
     @staticmethod
     async def update_item_in_cart(jwt_token: str, product_key: str, quantity: int, redis: AsyncRedisCache):

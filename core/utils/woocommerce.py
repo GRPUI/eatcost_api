@@ -75,6 +75,8 @@ class WooCommerceUtils:
         price = self._to_float(product.get("price", 0) or 0)
         regular_price = self._get_price(product.get("regular_price"), price)
         sale_price = self._get_price(product.get("sale_price"), price)
+        attributes = product.get("attributes", [])
+        variations = product.get("variations", [])
 
         simplified_product = {
             "id": product.get("id"),
@@ -91,6 +93,8 @@ class WooCommerceUtils:
             "stock_status": product.get("stock_status") or "",
             "categories": product.get("categories", []),
             "images": [image["src"] for image in product.get("images", [])],
+            "attributes": attributes,
+            "variations": variations,
         }
         return simplified_product
 
@@ -119,7 +123,7 @@ class WooCommerceUtils:
 
         try:
             async with self.session.get(
-                f"{self.base_url}/wp-json/wc/v3/products",
+                f"{self.base_url}/wp-json/wc/store/v1/products",
                 params={"per_page": 100, "category": category_id, "page": page},
                 auth=aiohttp.BasicAuth(self.consumer_key, self.consumer_secret)
             ) as response:
@@ -210,7 +214,7 @@ class WooCommerceUtils:
 
         try:
             async with self.session.get(
-                f"{self.base_url}/wp-json/wc/v3/products",
+                f"{self.base_url}/wp-json/wc/store/v1/products",
                 params={"per_page": 100, "search": search_query, "page": page},
                 auth=aiohttp.BasicAuth(self.consumer_key, self.consumer_secret)
             ) as response:
@@ -220,7 +224,6 @@ class WooCommerceUtils:
                 if response.status != 200:
                     logger.warning(f"Search returned status {response.status}")
                     return []
-
                 products = [self.aggregate_product_data(product) for product in response_result]
                 logger.info(f"Found {len(products)} products matching query: {search_query}")
                 return products
@@ -514,6 +517,21 @@ class WooCommerceUtils:
             data = await response.json()
             cart_token = response.headers.get("Cart-Token")
             return {"items": self.format_cart(data), "cart_token": cart_token}
+
+    async def add_item_to_cart(self, cart_token: str, product_id: int, quantity: int):
+        if not self.session:
+            error_msg = "Session not initialized. Use 'async with WooCommerceUtils(...) as wc:' to initialize."
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        async with self.session.get(
+            f"{self.base_url}/wp-json/wc/store/v1/cart",
+            json={"id":str(product_id),"quantity":quantity, "cart_token": cart_token }
+        ) as response:
+            response.raise_for_status()
+            data = await response.json()
+            status = response.status
+            return {"status": status, "data": data}
+
 
     async def update_item_in_cart(self, cart_token: str, item_key: str, quantity: int):
         if not self.session:
